@@ -17,3 +17,8 @@ keras-tuner
 tf-keras
 keras-hub
 
+实施下面的命令即可
+pip install tensorflow numpy matplotlib d2l
+pip install tensorflow-datasets
+pip install datasets
+
