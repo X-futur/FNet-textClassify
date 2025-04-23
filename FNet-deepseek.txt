@@ -1,0 +1,99 @@
+pip install tensorflow numpy matplotlib d2l
+pip install tensorflow-datasets
+pip install datasets
+
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+import numpy as np
+import matplotlib.pyplot as plt
+
+# FNet层实现
+class FNetLayer(layers.Layer):
+    def __init__(self, **kwargs):
+        super(FNetLayer, self).__init__(**kwargs)
+    
+    def call(self, inputs):
+        # 对最后两个维度应用2D傅里叶变换
+        real = tf.math.real(tf.signal.fft2d(tf.cast(inputs, tf.complex64)))
+        return real
+
+# 模型参数
+VOCAB_SIZE = 20000
+MAX_SEQUENCE_LENGTH = 256
+EMBED_DIM = 128
+FF_DIM = 128
+NUM_LAYERS = 2
+
+# 加载IMDB数据集
+(x_train, y_train), (x_test, y_test) = keras.datasets.imdb.load_data(num_words=VOCAB_SIZE)
+x_train = keras.preprocessing.sequence.pad_sequences(x_train, maxlen=MAX_SEQUENCE_LENGTH)
+x_test = keras.preprocessing.sequence.pad_sequences(x_test, maxlen=MAX_SEQUENCE_LENGTH)
+
+# 创建FNet模型
+def create_fnet_model():
+    inputs = layers.Input(shape=(MAX_SEQUENCE_LENGTH,))
+    embedding_layer = layers.Embedding(VOCAB_SIZE, EMBED_DIM)(inputs)
+    position_embedding = layers.Embedding(
+        input_dim=MAX_SEQUENCE_LENGTH, output_dim=EMBED_DIM
+    )(tf.range(start=0, limit=MAX_SEQUENCE_LENGTH, delta=1))
+    embeddings = embedding_layer + position_embedding
+    
+    fnet_output = embeddings
+    for _ in range(NUM_LAYERS):
+        fnet_output = layers.LayerNormalization(epsilon=1e-6)(fnet_output)
+        fnet_output = FNetLayer()(fnet_output)
+        fnet_output = layers.LayerNormalization(epsilon=1e-6)(fnet_output)
+        fnet_output = layers.Dense(FF_DIM, activation="relu")(fnet_output)
+        fnet_output = layers.Dense(EMBED_DIM)(fnet_output)
+    
+    pooled_output = layers.GlobalAveragePooling1D()(fnet_output)
+    outputs = layers.Dense(1, activation="sigmoid")(pooled_output)
+    return keras.Model(inputs=inputs, outputs=outputs)
+
+# 创建并编译模型
+model = create_fnet_model()
+model.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=1e-4),
+    loss="binary_crossentropy",
+    metrics=["accuracy"],
+)
+
+# 训练模型
+history = model.fit(
+    x_train, y_train,
+    batch_size=32,
+    epochs=10,  # 增加epoch数量以获得更平滑的曲线
+    validation_data=(x_test, y_test),
+    verbose=1
+)
+
+# 绘制训练曲线
+plt.figure(figsize=(12, 5))
+
+# 绘制Loss曲线
+plt.subplot(1, 2, 1)
+plt.plot(history.history['loss'], label='训练Loss')
+plt.plot(history.history['val_loss'], label='验证Loss')
+plt.title('Loss随Epoch变化')
+plt.xlabel('Epoch')
+plt.ylabel('Loss')
+plt.legend()
+
+# 绘制Accuracy曲线
+plt.subplot(1, 2, 2)
+plt.plot(history.history['accuracy'], label='训练Accuracy')
+plt.plot(history.history['val_accuracy'], label='验证Accuracy')
+plt.title('Accuracy随Epoch变化')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.legend()
+
+plt.tight_layout()
+plt.show()
+
+# 评估模型
+loss, accuracy = model.evaluate(x_test, y_test, verbose=0)
+print(f"\n最终测试结果: 损失={loss:.4f}, 准确率={accuracy:.4f}")
+
+请解释这段代码的模型架构以及数据集划分

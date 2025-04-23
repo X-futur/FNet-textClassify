@@ -1,0 +1,2 @@
+基于Transformer的文本分类模型：https://keras.io/examples/nlp/text_classification_with_transformer/
+这个网站上还有很多基于keras框架的模型，都有现成代码和解释
